@@ -1,19 +1,26 @@
-# 
-Check Nodes
+# Kubernetes Cluster Diagnostic & Administration Log
 
+A structured collection of live terminal traces documenting common node status checks, image pull failures, cordoning operations, replica scaling, and deployment recovery using backup YAML files.
+
+---
+
+## 1. Check Node Status & kubelet Health
+
+Verify all nodes in the cluster and check their status:
+```bash
 [root@master ~]# kubectl get nodes
 NAME     STATUS   ROLES                  AGE   VERSION
 master   Ready    control-plane,master   14d   v1.21.2
 worker   Ready    <none>                 14d   v1.21.2
+```
 
-
-# Check kublet service 
-
+Check the `kubelet` service daemon health status:
+```bash
 [root@master ~]# systemctl status kubelet
 ● kubelet.service - kubelet: The Kubernetes Node Agent
      Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enab>
-    Drop-In: /usr/lib/systemd/system/kubelet.service.d
-             └─10-kubeadm.conf
+     Drop-In: /usr/lib/systemd/system/kubelet.service.d
+              └─10-kubeadm.conf
      Active: active (running) since Tue 2025-01-21 02:09:38 UTC; 5>
        Docs: https://kubernetes.io/docs/
    Main PID: 1629 (kubelet)
@@ -21,11 +28,19 @@ worker   Ready    <none>                 14d   v1.21.2
      Memory: 126.3M
         CPU: 10.887s
      CGroup: /system.slice/kubelet.service
+```
 
-############3
-# Describe worker 
+---
 
+## 2. Describe Worker Node Details
+
+Inspect resource capacities, allocations, conditions, and active pods on the worker node:
+```bash
 [root@master ~]# kubectl describe node worker
+```
+
+**Output:**
+```text
 Name:               worker
 Roles:              <none>
 Labels:             beta.kubernetes.io/arch=amd64
@@ -115,13 +130,20 @@ Events:
   Normal  NodeHasSufficientMemory  8m16s (x8 over 8m41s)  kubelet     Node worker status is now: NodeHasSufficientMemory
   Normal  NodeHasNoDiskPressure    8m16s (x8 over 8m41s)  kubelet     Node worker status is now: NodeHasNoDiskPressure
   Normal  Starting                 8m2s                   kube-proxy  Starting kube-proxy.
-[root@master ~]#
+```
 
-####
-Check image 
+---
 
+## 3. Check Image pull and Pod Events
+
+Testing pod deployment with a non-existent image (`xyz`) in the `besant` namespace:
+```bash
 [root@master ~]# kubectl  run mypod --image=xyz -n besant
 pod/mypod created
+```
+
+Check the active pods status:
+```bash
 [root@master ~]# kubectl get pods -n besant
 NAME                                READY   STATUS         RESTARTS   AG                                             E
 multicontainer                      2/2     Running        4          12                                             d
@@ -130,8 +152,15 @@ myapp-deployment-558547cf67-kwrfq   1/1     Running        1          23        
 myapp-deployment-558547cf67-srfkp   1/1     Running        1          23                                             h
 mypod                               0/1     ErrImagePull   0          2s
 nginx                               1/1     Running        2          12                                             d
+```
 
+Describe `mypod` to troubleshoot the `ImagePullBackOff` failure:
+```bash
 [root@master ~]# kubectl describe pod mypod -n besant
+```
+
+**Output:**
+```text
 Name:         mypod
 Namespace:    besant
 Priority:     0
@@ -183,14 +212,16 @@ Events:
   Warning  Failed     42s (x3 over 86s)  kubelet            Error: ErrImagePull
   Normal   BackOff    2s (x5 over 84s)   kubelet            Back-off pulling image "xyz"
   Warning  Failed     2s (x5 over 84s)   kubelet            Error: ImagePullBackOff
-[root@master ~]#
+```
 
-
+Deploying a functional `nginx` container:
+```bash
 [root@master ~]# kubectl  run mypod1 --image=nginx -n besant
 pod/mypod1 created
-[root@master ~]#
+```
 
-
+Check the updated pods status:
+```bash
 [root@master ~]# kubectl get pods -n besant
 NAME                                READY   STATUS             RESTARTS   AGE
 multicontainer                      2/2     Running            4          12d
@@ -200,33 +231,42 @@ myapp-deployment-558547cf67-srfkp   1/1     Running            1          23h
 mypod                               0/1     ImagePullBackOff   0          2m48s
 mypod1                              0/1     Pending            0          8s
 nginx                               1/1     Running            2          12d
+```
 
+---
 
-###
-Cordon 
+## 4. Cordon & Uncordon worker Node
 
+Disable scheduling on the worker node:
+```bash
+[root@master ~]# kubectl cordon worker
+node/worker already cordoned
+```
+
+Check node list and scheduling state:
+```bash
 [root@master ~]# k get nodes
 NAME     STATUS                     ROLES                  AGE   VERSION
 master   Ready                      control-plane,master   14d   v1.21.2
 worker   Ready,SchedulingDisabled   <none>                 14d   v1.21.2
-[root@master ~]#
-[root@master ~]#
-[root@master ~]#
-[root@master ~]#
-[root@master ~]# kubectl cordon worker
-node/worker already cordoned
-[root@master ~]#
-[root@master ~]#
-[root@master ~]#
-[root@master ~]#
-[root@master ~]#  kubectl  uncordon worker
+```
+
+Uncordon the worker node to allow pod scheduling:
+```bash
+[root@master ~]# kubectl uncordon worker
 node/worker uncordoned
+```
+
+Check status again:
+```bash
 [root@master ~]# k get nodes
 NAME     STATUS   ROLES                  AGE   VERSION
 master   Ready    control-plane,master   14d   v1.21.2
 worker   Ready    <none>                 14d   v1.21.2
-[root@master ~]#
-[root@master ~]#
+```
+
+Check active pods:
+```bash
 [root@master ~]# kubectl get pods -n besant
 NAME                                READY   STATUS             RESTARTS   AGE
 multicontainer                      2/2     Running            4          12d
@@ -236,22 +276,31 @@ myapp-deployment-558547cf67-srfkp   1/1     Running            1          23h
 mypod                               0/1     ImagePullBackOff   0          5m16s
 mypod1                              0/1     Pending            0          2m36s
 nginx                               1/1     Running            2          12d
-[root@master ~]#
+```
 
+---
 
-### 
+## 5. Scale Deployment Replicas
 
-Scale deploy - 
-
+Check deployment size:
+```bash
 [root@master ~]# kubectl get deploy -n besant
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-deployment   3/3     3            3           24h
-[root@master ~]#
+```
+
+Scale down deployment to 1 replica:
+```bash
 [root@master ~]# kubectl scale deploy myapp-deployment --replicas=1 -n besant
 deployment.apps/myapp-deployment scaled
+```
+
+Check active deployments and pods during termination:
+```bash
 [root@master ~]# kubectl get deploy -n besant
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-deployment   1/1     1            1           24h
+
 [root@master ~]# k get pods -n besant
 NAME                                READY   STATUS             RESTARTS   AGE
 multicontainer                      2/2     Running            4          12d
@@ -261,18 +310,26 @@ myapp-deployment-558547cf67-srfkp   1/1     Running            1          24h
 mypod                               0/1     ImagePullBackOff   0          9m4s
 mypod1                              1/1     Running            0          6m24s
 nginx                               1/1     Running            2          12d
-[root@master ~]#
+```
 
+---
 
+## 6. Backup and Re-apply Deployment Manifest
 
-#### 
-Save Deploy yaml 
-
-
+Retrieve deployment list:
+```bash
 [root@master ~]# k get deploy -n besant
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-deployment   3/3     3            3           24h
-[root@master ~]# k get deploy -n besant  myapp-deployment -oyaml
+```
+
+Dump the active deployment specification to standard output:
+```bash
+[root@master ~]# k get deploy -n besant myapp-deployment -oyaml
+```
+
+**Output:**
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -340,9 +397,15 @@ status:
   readyReplicas: 3
   replicas: 3
   updatedReplicas: 3
-[root@master ~]#
-[root@master ~]#
+```
+
+Export deployment to a backup file:
+```bash
 [root@master ~]# k get deploy -n besant  myapp-deployment -oyaml > savedeploy.yaml
+```
+
+List active local files:
+```bash
 [root@master ~]# ll
 total 44
 -rw-r--r--. 1 root root  178 Jan 20 02:34 1
@@ -355,40 +418,59 @@ total 44
 -rw-r--r--. 1 root root  182 Jan 20 02:40 svc_LoadBalancer.yaml
 -rw-r--r--. 1 root root  178 Jan 20 02:34 svc_NodePort.yaml
 -rw-r--r--. 1 root root  180 Jan 20 02:44 svc_clusterip.yaml
-[root@master ~]#
+```
 
-
+Verify deployment exists:
+```bash
 [root@master ~]# k get deploy -n besant
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-deployment   3/3     3            3           24h
-[root@master ~]#
-[root@master ~]#
+```
+
+Delete the deployment:
+```bash
 [root@master ~]# k delete deploy myapp-deployment -n besant
 deployment.apps "myapp-deployment" deleted
+```
+
+Verify resource removal:
+```bash
 [root@master ~]# k get deploy -n besant
 No resources found in besant namespace.
-[root@master ~]#
-[root@master ~]#
+```
+
+List local files:
+```bash
 [root@master ~]# ls
 1                  nginx-pod.yml                svc_NodePort.yaml
 deployment.yaml    savedeploy.yaml              svc_clusterip.yaml
 k8s_svc.txt        svc_Hard_code_NodePort.yaml
 my-namespace.yaml  svc_LoadBalancer.yaml
+```
+
+Restore deployment using backup YAML:
+```bash
 [root@master ~]# k apply -f savedeploy.yaml -n besant
 deployment.apps/myapp-deployment created
-[root@master ~]#
+```
+
+Check the deployment status after restore:
+```bash
 [root@master ~]# k get deploy -n besant
 NAME               READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-deployment   3/3     3            3           3s
-[root@master ~]#
+```
 
+---
 
-####
+## 7. Print Join Worker Node Command
 
-Print join worker node  cmd 
-
-[root@master ~]#
+Generate a token and print the bootstrap command required to join worker nodes:
+```bash
 [root@master ~]# kubeadm token create --print-join-command
+```
+
+**Output:**
+```text
 kubeadm join 192.168.10.175:6443 --token nm6bh8.4pqr583abi157d8x --discovery-token-ca-cert-hash sha256:4f8cf1eae483ba83d9551620354448390ad0c45dde0fbc40a69b51891f9e1d68
-
-
+```

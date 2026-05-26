@@ -1,23 +1,32 @@
-# untaint master nodes : 
+# Complete Kubernetes Administration & Reference Guide
 
-#kubectl taint nodes $(hostname) node-role.kubernetes.io/master:NoSchedule- 
+This comprehensive reference document contains detailed commands, network port rules, initialization procedures, YAML templates, and troubleshooting steps for setting up and managing a multi-node Kubernetes cluster.
 
-#[root@ip-192-168-10-30 pradeep]# kubectl taint nodes $(hostname) node-role.kubernetes.io/master:NoSchedule-
-#node/ip-192-168-10-30.us-east-2.compute.internal untainted
+---
 
+## 1. Master & Worker Port Requirements
 
-# Kubernetes Port Requirements
+To ensure proper cluster communication, configure your host firewalls or security groups to open the following inbound ports.
 
-Master node
-TCP Inbound 2379 – 2380
-TCP Inbound 6443, 10250, 10251, 10252
+### Master Nodes
+* **TCP Inbound 2379 – 2380:** etcd server client API
+* **TCP Inbound 6443:** Kubernetes API server
+* **TCP Inbound 10250:** Kubelet API
+* **TCP Inbound 10251:** kube-scheduler
+* **TCP Inbound 10252:** kube-controller-manager
 
-Worker node
-TCP Inbound 10250
-TCP Inbound 30000–32767
+### Worker Nodes
+* **TCP Inbound 10250:** Kubelet API
+* **TCP Inbound 30000–32767:** NodePort Services (Default port range)
 
-# =========================================MASTER==============================================
+---
 
+## 2. Master Node Bootstrapping (Ubuntu)
+
+Follow these steps on your master node to install Docker, configure Kubernetes packages, initialize the control plane, and set up local authentication.
+
+### Step 2.1: Initial System Preparation
+```bash
 # Become root user
 sudo su
 
@@ -28,30 +37,40 @@ cat /etc/hosts
 
 # Update package lists
 apt-get update
+```
 
-# Install Docker (Kubernetes supports upto version 18.06)
+### Step 2.2: Install Docker Engine (Recommended version 18.06)
+```bash
 apt-get install -y apt-transport-https
 curl -s https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
 apt update
 apt install -y docker-ce=18.06.0~ce~3-0~ubuntu
 usermod -aG docker ubuntu
+```
 
-# Install Kubernetes
+### Step 2.3: Install Kubernetes Components
+```bash
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
 apt-get update
 
 apt-get install -y kubeadm kubelet kubectl
 apt-mark hold kubelet kubeadm kubectl
+```
 
+### Step 2.4: Initialize Cluster Control Plane
+```bash
 # Initialize Kubernetes:
 # kubeadm init --apiserver-advertise-address=$(hostname -i) --pod-network-cidr=10.244.0.0/16
 kubeadm init --pod-network-cidr=10.244.0.0/16
+```
+> [!NOTE]
+> Note down the join token returned at the end of the initialization output. Example:
+> `kubeadm join 172.31.44.222:6443 --token u3emp1.v1apk68iwuhpugt4 --discovery-token-ca-cert-hash sha256:bfadbe7f4ad864567cb75bc96e877ff91902320866d29e1c75dab9ecd1ea745f`
 
-# kubeadm join 172.31.44.222:6443 --token u3emp1.v1apk68iwuhpugt4 --discovery-token-ca-cert-hash sha256:bfadbe7f4ad864567cb75bc96e877ff91902320866d29e1c75dab9ecd1ea745f
-
-# Note down the returned token
+### Step 2.5: Configure Local Non-Root kubectl Access
+```bash
 su - ubuntu
 docker info
 
@@ -61,21 +80,36 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 cat $HOME/.kube/config
+```
 
-# Wait till all pods are running (except core-dns)
+### Step 2.6: CNI Network Fabric Deployment (Flannel)
+Verify initial pods are up before applying network fabric:
+```bash
 kubectl get pods --all-namespaces
+```
 
-# Deploy Flannel network (L3 network fabric i.e. abstraction for VxLAN or other packet forwarding backends)
+Deploy Flannel L3 network fabric overlay:
+```bash
 kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+```
 
+Verify CNI deployment and check active nodes:
+```bash
 # Get pods in all namespaces
 kubectl get pods --all-namespaces
 
 # Get all nodes
 kubectl get nodes
+```
 
-# =========================================WORKER==============================================
+---
 
+## 3. Worker Node Setup & Integration
+
+Execute these commands on your worker hosts to prepare them and join the cluster control plane.
+
+### Step 3.1: Install Docker & Kubernetes on Worker
+```bash
 # Become root user
 sudo su
 
@@ -85,7 +119,7 @@ echo -e "\n$(hostname -i) \t $(hostname)\n" >> /etc/hosts
 # Update package lists
 apt-get update
 
-# Install Docker (Kubernetes supports upto version 18.06)
+# Install Docker
 apt-get install -y apt-transport-https
 curl -s https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
@@ -100,41 +134,53 @@ echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.l
 apt-get update
 apt-get install -y kubeadm kubelet kubectl
 apt-mark hold kubelet kubeadm kubectl
+```
 
-
-
-
-
-
-# Join the cluster
+### Step 3.2: Join the Cluster
+Use the token recorded from the `kubeadm init` output to join:
+```bash
 kubeadm join <MASTER_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
+```
 
-# Use the noted token on "kubeadm init" Or run the following on master to get the join command
+### Step 3.3: (Optional) Generate Join Token on Master Node
+If you do not have the token, generate the correct command dynamically from the master host:
+```bash
 token=$(kubeadm token list | sed '1d' | head -1| awk '{print $1}')
 hash=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | awk '{print $2}')
 ipaddress=$(hostname -i)
 echo -e "\n\nkubeadm join $ipaddress:6443 --token $token --discovery-token-ca-cert-hash sha256:$hash\n\n";
 unset token hash
+```
 
+---
 
-# =========================================MASTER==============================================
+## 4. Verification & Basic Object Management
 
+Verify node connectivity and test the deployment of Pods, Replication Controllers, and Services.
+
+### Step 4.1: Cluster Verification
+```bash
 # Get all nodes
 kubectl get nodes -o wide
 
-
 # Get pods in all namespaces
 kubectl get pods --all-namespaces -o wide
+```
 
-
+### Step 4.2: Deploying a Pod
+```bash
 git clone https://github.com/Kalki5/temp
 cd temp
-
 ll
+```
 
-
-
+Create a custom pod manifest file:
+```bash
 vim nginx-pod.yml
+```
+
+**`nginx-pod.yml`:**
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -148,31 +194,43 @@ spec:
     imagePullPolicy: IfNotPresent
     ports:
     - containerPort: 80
+```
 
+Deploy, verify, and describe the pod:
+```bash
 kubectl create -f nginx-pod.yml
 
 kubectl get pods
-
 kubectl get pods -o wide
-
 kubectl describe pods nginx
-
 curl <POD_IP>
+```
 
+Expose the pod internally:
+```bash
 kubectl expose pod nginx --port=80 --name=nginx-http
-
 kubectl get svc
-
 curl <SVC_IP>
+```
 
+Clean up resources:
+```bash
 kubectl delete svc nginx-http
-
 kubectl delete -f nginx-pod.yml
-
 kubectl get svc
 kubectl get pod
+```
 
+---
+
+### Step 4.3: Deploying a ReplicationController
+Create a ReplicationController manifest:
+```bash
 vim nginx-rs.yml
+```
+
+**`nginx-rs.yml`:**
+```yaml
 apiVersion: v1
 kind: ReplicationController
 metadata:
@@ -193,18 +251,27 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
+```
 
+Deploy and check the status:
+```bash
 kubectl create -f nginx-rs.yml
-
 kubectl get rc -o wide
-
 kubectl describe rc nginx
-
 kubectl get pods
-
 kubectl get pods -o wide
+```
 
+---
+
+### Step 4.4: Deploying a Service (LoadBalancer)
+Create a Service manifest:
+```bash
 vim nginx-svc.yml
+```
+
+**`nginx-svc.yml`:**
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -219,56 +286,78 @@ spec:
   selector:
     apps: nginx
   type: LoadBalancer
+```
 
-
+Deploy and verify service:
+```bash
 kubectl create -f nginx-svc.yml
-
 kubectl get svc
+```
 
+To diagnose processes inside containers:
+```bash
 # Kill nginx containers
 htop
+```
 
+Deploying and exposing an Apache service using imperative commands:
+```bash
 kubectl create deployment apache --image=httpd
 kubectl get deployments
 kubectl create service nodeport apache --tcp=80:80
 kubectl get svc
+```
 
-# Describe node (Notice the Taints field)
+---
+
+## 5. Control Plane Node Taints & Node Operations
+
+Kubernetes masters are tainted by default to prevent scheduling workloads. Below are commands to manage taints and reset cluster states.
+
+### Step 5.1: Describe and Check Master Taints
+```bash
 kubectl describe nodes $(hostname)
 kubectl describe nodes $(hostname) | grep Taints
+```
 
-
-
-
-
-
-
-
-
-
-
-
-# Extra
-
-
+### Step 5.2: Remove the Taint (Allow Pods on Master)
+```bash
 # Remove the taint from master node (i.e. Allow pods to be scheduled on the master)
 kubectl taint nodes $(hostname) node-role.kubernetes.io/master-
+```
 
+### Step 5.3: Re-apply the Master Taint
+```bash
 # Add the taint back again
 kubectl taint nodes $(hostname) $(hostname)=DoNotSchedulePods:NoSchedule
+```
 
+### Step 5.4: Reset Cluster Node (Revert kubeadm init)
+```bash
 # To reset "kubeadm init"
 kubectl drain $(hostname) --delete-local-data --force --ignore-daemonsets
 kubectl delete node $(hostname)
 sudo kubeadm reset
+```
 
+Inspect Flannel network interface configuration:
+```bash
 cat /run/flannel/subnet.env
+```
 
+---
 
+## 6. Kubernetes Dashboard & Monitoring Add-ons
 
+Install and configure the Kubernetes Web Dashboard UI alongside Heapster for container monitoring.
 
-
+### Step 6.1: Deploy Kubernetes Dashboard
+```bash
 vim kubernetes-dashboard.yaml
+```
+
+**`kubernetes-dashboard.yaml`:**
+```yaml
 # ------------------- Dashboard Secret ------------------- #
 apiVersion: v1
 kind: Secret
@@ -364,14 +453,9 @@ spec:
           protocol: TCP
         args:
           - --auto-generate-certificates
-          # Uncomment the following line to manually specify Kubernetes API server Host
-          # If not specified, Dashboard will attempt to auto discover the API server and connect
-          # to it. Uncomment only if the default does not work.
-          # - --apiserver-host=http://my-address:port
         volumeMounts:
         - name: kubernetes-dashboard-certs
           mountPath: /certs
-          # Create on-disk volume to store exec logs
         - mountPath: /tmp
           name: tmp-volume
         livenessProbe:
@@ -388,7 +472,6 @@ spec:
       - name: tmp-volume
         emptyDir: {}
       serviceAccountName: kubernetes-dashboard
-      # Comment the following tolerations if Dashboard must not be deployed on master
       tolerations:
       - key: node-role.kubernetes.io/master
         effect: NoSchedule
@@ -408,13 +491,23 @@ spec:
   selector:
     k8s-app: kubernetes-dashboard
   type: NodePort
+```
 
-
+Apply and check Dashboard:
+```bash
 kubectl create -f kubernetes-dashboard.yaml
 kubectl get deployment -n kube-system -o wide
+```
 
+---
 
+### Step 6.2: Deploy Heapster Monitoring Add-on
+```bash
 vim heapster.yaml
+```
+
+**`heapster.yaml`:**
+```yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -448,8 +541,6 @@ kind: Service
 metadata:
   labels:
     task: monitoring
-    # For use as a Cluster add-on (https://github.com/kubernetes/kubernetes/tree/master/cluster/addons)
-    # If you are NOT using this as an addon, you should comment out this line.
     kubernetes.io/cluster-service: 'true'
     kubernetes.io/name: Heapster
   name: heapster
@@ -473,24 +564,37 @@ subjects:
 - kind: ServiceAccount
   name: heapster
   namespace: kube-system
+```
 
-
-
-
+Apply and verify Heapster:
+```bash
 kubectl create -f heapster.yaml
 kubectl get -f heapster.yaml
+```
 
-
+Assign stats permissions to system heapster:
+```bash
 kubectl edit clusterrole system:heapster
+```
+*Verify the apiGroups block contains:*
+```yaml
 - apiGroups:
   - ""
   resources:
   - nodes/stats
   verbs:
   - get
+```
 
+---
 
+### Step 6.3: Dashboard Admin Service Account Creation
+```bash
 vim kubernetes-dashboard-admin.yaml
+```
+
+**`kubernetes-dashboard-admin.yaml`:**
+```yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -509,53 +613,65 @@ subjects:
 - kind: ServiceAccount
   name: admin-user
   namespace: kube-system
+```
 
-
+Apply manifest and retrieve token:
+```bash
 kubectl create -f kubernetes-dashboard-admin.yaml
 
 kubectl -n kube-system get secret | grep admin-user
 
 kubectl -n kube-system describe secret <SECRET_NAME>
 
+# Alternative dynamic retrieval:
 # kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
+```
 
+Access Dashboard externally using proxy or port-forward:
+```bash
 # kubectl proxy --address='0.0.0.0' --accept-hosts='^*$'
-
 # kubectl -n kube-system edit service kubernetes-dashboard
 # kubectl -n kube-system get service kubernetes-dashboard
 # netstat -plnt
 
 kubectl get svc -n kube-system
+```
 
+---
 
-
-
-
-
-
-
-
-
-
-
-
-# Get pods in all namespaces
+### Step 6.4: Alternate Deployment Trace (Web UI v1.10.1)
+```bash
 kubectl get pods --all-namespaces
 
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+```
 
+Create admin user:
+```bash
 vim dashboard-adminuser.yaml
+```
 
+**`dashboard-adminuser.yaml`:**
+```yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: admin-user
   namespace: kube-system
+```
 
+Apply admin user manifest:
+```bash
 kubectl apply -f dashboard-adminuser.yaml
+```
 
+Create rolebinding:
+```bash
 vim dashboad-rolebinding.yaml
+```
 
+**`dashboad-rolebinding.yaml`:**
+```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -568,8 +684,14 @@ subjects:
 - kind: ServiceAccount
   name: admin-user
   namespace: kube-system
+```
 
+Apply rolebinding:
+```bash
 kubectl apply -f  dashboad-rolebinding.yaml
+```
 
+Start the proxy server to allow external connection:
+```bash
 kubectl proxy --address='0.0.0.0' --accept-hosts='.*'
-
+```
