@@ -20,6 +20,36 @@ cat <<EOF>> /etc/hosts
 EOF
 ```
 
+### SELinux Deep Dive & Verification (`sestatus`)
+
+Security-Enhanced Linux (SELinux) is a Linux kernel security module that provides access control security policies. In a Kubernetes cluster, SELinux must be set to **Permissive** or **Disabled** because:
+* Kubernetes requires host filesystem access for container runtimes to manage pods, mount volumes, and handle networking.
+* Default SELinux policies often block these container-to-host operations, leading to container start failures or permission denied errors.
+
+#### Checking SELinux Status
+
+Before modifying any configuration, check the current state of SELinux on your host using the `sestatus` command:
+
+```bash
+sestatus
+```
+
+**Common Output Fields:**
+* **SELinux status:** Indicates if it is `enabled` or `disabled`.
+* **Current mode:** The active mode of the system (e.g., `enforcing`, `permissive`, or `disabled`).
+* **Mode from config file:** The mode that will be loaded upon the next system reboot.
+
+#### Understanding SELinux Modes
+
+| Mode | Behavior | Impact on Kubernetes |
+| :--- | :--- | :--- |
+| **Enforcing (`enforcing`)** | Security policy is strictly enforced. Unauthorized actions are blocked and logged. | **Blocks Kubernetes** from performing vital system tasks. |
+| **Permissive (`permissive`)** | Security policy is not enforced. Actions are allowed, but violations are logged. | **Recommended for K8s installation/troubleshooting** without fully disabling security. |
+| **Disabled (`disabled`)** | SELinux is completely turned off. No policies are loaded, and no violations are logged. | **Allowed by K8s**, but completely turns off host security features. |
+
+> [!NOTE]
+> Setting SELinux to `permissive` allows you to successfully initialize `kubeadm` and deploy containers while logging any potential issues to `/var/log/audit/audit.log` for security auditing.
+
 ---
 
 ## 2. Disable Security Enforcements & Firewalls
