@@ -39,6 +39,120 @@ Navigate through the comprehensive modules in this workspace:
 
 ---
 
+## 🗂️ Workspace Files & Content Overview
+
+Below is a detailed hierarchical outline of every file in the workspace and the exact technical topics covered inside them:
+
+### 🏗️ Category A: Core Cluster Architecture & Provisioning
+
+#### 1. [K8s_componentes.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/K8s_componentes.md)
+* **Description:** Conceptual architecture manual detailing the roles of core control plane components and node agents.
+* **Key Contents:**
+  * **Control Plane Components:** Core analysis of `kube-apiserver` (horizontal scaling), `etcd` (distributed key-value state), `kube-scheduler` (scheduling criteria), `kube-controller-manager` (node, replication, endpoint, and token loops), and `cloud-controller-manager` (cloud service/node/route bindings).
+  * **Node Components:** Core roles of `kubelet` (PodSpecs executor), `kube-proxy` (internal packet filtering / load balancing), and Container Runtimes (CRI, containerd, CRI-O).
+  * **Addon Implementations:** Core services including CoreDNS, Web UI Dashboard, monitoring suites, and centralized cluster-level logging.
+
+#### 2. [kubeadm_init.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/kubeadm_init.md)
+* **Description:** Step-by-step master node setup guide detailing host preparations and single-master bootstrapping.
+* **Key Contents:**
+  * **OS Pre-requisites:** Setting node hostnames, editing local `/etc/hosts` resolution tables, disabling SELinux and Firewalld services, and loading netfilter bridge modules.
+  * **Package Management:** Setting up custom YUM repositories and installing precise versions of `kubelet-1.21.2`, `kubeadm-1.21.2`, and `kubectl-1.21.2`.
+  * **Bootstrap Commands:** Executing `kubeadm init` with `--pod-network-cidr=10.244.0.0/16`, configuring local admin kubeconfig, and deploying the Flannel CNI network overlay.
+
+#### 3. [HA_K8s_cluster_document.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/HA_K8s_cluster_document.md)
+* **Description:** Advanced guide explaining the architecture and installation of a Highly Available Multi-Master control plane.
+* **Key Contents:**
+  * **HA Concepts:** Detailed study of `--upload-certs` mechanics, etcd lease quorums, and dynamic token-to-secret bindings.
+  * **Proxy Setup:** Configuring an external Nginx Stream load balancer to proxy `kube-apiserver` traffic on port `6443`.
+  * **Multi-Master Joins:** Creating custom `ClusterConfiguration` manifests and joining additional control-planes via `--experimental-control-plane` using certificate keys.
+  * **Dashboard Access:** Setup and authorization of the official Web UI, creating a cluster-admin Service Account, and extracting JWT bearer authentication keys.
+
+---
+
+### ⚙️ Category B: Application Delivery & Service Mesh Routing
+
+#### 4. [k8s_svc.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s_svc.md)
+* **Description:** Networking manual covering internal and external service exposure models.
+* **Key Contents:**
+  * **Service Types:** Architectural differences between ClusterIP, NodePort, and LoadBalancer abstractions.
+  * **Networking Labs:** Exposing a sample 3-replica application in the `besant` namespace.
+  * **Testing Traces:** Running curl tests against cluster-allocated IPs, exposing external NodePorts, and deploying LoadBalancer objects.
+  * **Static Binding:** Defining and deploying services using fixed external ports (`nodePort: 30007`).
+
+#### 5. [k8s_Deployment.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s_Deployment.md)
+* **Description:** Workload handbook explaining stateless applications management and rollout lifecycles.
+* **Key Contents:**
+  * **Manifest Syntax:** Declarative `.yaml` specifications using label selectors and template fields.
+  * **Scaling Controls:** Imperative commands to scale replica sets to 0 (termination) and back up to 3 instances.
+  * **Rollout Upgrades:** Triggering rolling updates by changing pod container images (e.g. Nginx to HTTPD Apache) and tracking rollout statuses.
+  * **Rollback Undos:** Performing historic rollbacks (`rollout undo`) to restore running configurations to previous stable states.
+
+#### 6. [Nginx Ingress Controller in Kubernetes.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/Nginx%20Ingress%20Controller%20in%20Kubernetes.md)
+* **Description:** Technical guide outlining the installation of the enterprise-grade Nginx Ingress Controller.
+* **Key Contents:**
+  * **Capabilities:** High-level details of SSL/TLS termination, URI rewrites, and basic load balancing.
+  * **Deployment Steps:** Cloning repositories, deploying the controller via `nginx-ingress.yaml`, and verifying daemon pods in the `ingress-nginx` namespace.
+
+#### 7. [k8s-ingress-example.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s-ingress-example.md)
+* **Description:** Practical routing tutorial mapping HTTP paths to distinct cluster backends.
+* **Key Contents:**
+  * **Mock Applications:** Deploying dual mock pods (`apple-app` and `banana-app`) using the `hashicorp/http-echo` image.
+  * **Ingress Mapping:** Creating an Ingress resource allocating routing paths `/apple` and `/banana` to respective service backend ports.
+  * **Domain Access:** Modifying local `/etc/hosts` tables to map `example.com` to your Ingress NodePort and testing responses.
+
+#### 8. [k8s Ingress-test.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s%20Ingress-test.md)
+* **Description:** Advanced Ingress testing walkthrough utilizing rewrite rules and custom local domains.
+* **Key Contents:**
+  * **Service Binding:** Creating a standard NodePort service and capturing its specific ClusterIP dynamically.
+  * **Ingress Annotations:** Drafting `ingress.yaml` featuring path rewrites (`nginx.ingress.kubernetes.io/rewrite-target`) and binding rules targeting the local domain `my-app.com`.
+
+---
+
+### 🛠️ Category C: Cheat Sheets & Automation Scripts
+
+#### 9. [play_with_k8s.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/play_with_k8s.md)
+* **Description:** Developer sandbox quick reference mapping daily developer-level tasks.
+* **Key Contents:**
+  * **Namespace Operations:** Creating namespaces imperatively and declaratively via manifests, list queries, and namespace deletions.
+  * **Pod Playbook:** Deploying pods, analyzing wide output details, and invoking ClusterIP/NodePort exposures.
+  * **Workloads & Taints:** Provisioning ReplicationControllers, scaling deployments, and cordoning/untainting master nodes.
+
+#### 10. [K8s_cmds.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/K8s_cmds.md)
+* **Description:** Massive, master administration cheat sheet containing system provisioning commands and add-on setups.
+* **Key Contents:**
+  * **Ports Config:** Firewall parameters mapping required TCP ports on masters (6443, 2379) and worker nodes.
+  * **OS Bootstrapping:** Provisioning scripts for Docker engines and Kubernetes binaries on Ubuntu servers.
+  * **Token Generation:** Advanced script blocks to dynamically construct full worker node `kubeadm join` commands.
+  * **Monitoring & Addons:** Deployments of Dashboard v1.8.3, Heapster resource collectors, and admin Service Accounts.
+
+#### 11. [enable-passowrd-ssh-with-userdata.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/enable-passowrd-ssh-with-userdata.md)
+* **Description:** Shell automation script designed to be run as cloud provider User Data.
+* **Key Contents:**
+  * **SSH Modifications:** Overriding sshd configuration parameters (`PasswordAuthentication yes`) and reloading the daemon.
+  * **User Provisioning:** Shell commands automating the creation of non-root admin users and injecting secure root credentials.
+
+---
+
+### 🩺 Category D: Diagnostic Logs & Troubleshooting Guides
+
+#### 12. [k8s_basic_troubleshooting.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s_basic_troubleshooting.md)
+* **Description:** Reference manual detailing the standard procedures for debugging cluster failures.
+* **Key Contents:**
+  * **Node Health:** Recovering crashed kubelet services and analyzing system logs via journalctl.
+  * **Pod Troubleshooting:** Diagnostic tables mapping states like `CrashLoopBackOff`, `ImagePullBackOff`, and `Pending` to root causes.
+  * **Log Inspections:** Capturing output streams of terminated or restarting containers using `--previous` flags.
+  * **Cordoning Scenarios:** Step-by-step trace showing the scheduling consequences of cordoning nodes.
+
+#### 13. [k8s_trouble_shooting_steps.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/k8s_trouble_shooting_steps.md) & [1.md](file:///c:/Users/prem/Desktop/Cloud%20Computing/DevOps/k8s/1.md)
+* **Description:** Companion troubleshooting logs documenting an active recovery session.
+* **Key Contents:**
+  * **Diagnostic Logs:** Checking kubelet service states, reviewing container status codes, and inspecting image pulling permissions.
+  * **Cordon Operations:** Restricting worker scheduling during active maintenance windows.
+  * **Disaster Recovery:** Exporting running deployment manifests into backup YAML files (`savedeploy.yaml`), deleting corrupt workloads, and applying clean state restores.
+  * **Node Re-join:** Generating new token keys to link missing node workers back to the cluster control plane.
+
+---
+
 ## 🚀 The Kubernetes Learning Roadmap
 
 Follow this step-by-step roadmap to become a Kubernetes Certified Administrator (CKA/CKAD):
