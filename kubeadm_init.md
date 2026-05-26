@@ -58,6 +58,21 @@ To persistently disable SELinux or set it to permissive, you can manually edit t
 sudo vi /etc/selinux/config
 ```
 
+##### 🔍 Quick Diff Comparison
+Here is the exact difference you will apply in the editor (lines prefixed with `-` are modified/commented, lines prefixed with `+` are the new additions):
+
+```diff
+  # To revert back to SELinux enabled:
+  #
+  #    grubby --update-kernel ALL --remove-args selinux
+  #
+- SELINUX=permissive
++ #SELINUX=permissive
++ SELINUX=disabled
+  # SELINUXTYPE= can take one of these three values:
+  #     targeted - Targeted processes are protected,
+```
+
 ##### 📄 File State - BEFORE Editing
 
 ```text
